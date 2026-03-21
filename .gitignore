@@ -1,0 +1,42 @@
+# Dependencias de Node.js (BACKEND y FRONTEND)
+/node_modules
+
+# Variables de entorno (¡MUY IMPORTANTE! Nunca subas estas)
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.log
+
+# Build artifacts (especialmente para el frontend de React)
+/build
+/dist
+/out
+
+# Archivos de caché
+.parcel-cache/ # Si usas Parcel
+.eslintcache # Caché de ESLint
+.cache/ # Otros cachés comunes
+
+# Archivos de sistema operativo
+.DS_Store # macOS
+Thumbs.db # Windows
+
+# IDEs y editores (opcional, si los quieres ignorar globalmente)
+.idea/ # WebStorm/IntelliJ
+.vscode/ # VS Code
+*.sublime-project
+*.sublime-workspace
+
+# Archivos de cobertura de tests
+/coverage
+
+# Otros archivos generados que no necesitas en el control de versiones
+package-lock.json # Puedes ignorarlo si usas Yarn o si prefieres solo tener yarn.lock
+# yarn.lock # Puedes ignorarlo si usas npm y prefieres package-lock.json
