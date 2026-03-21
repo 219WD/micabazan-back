@@ -37,7 +37,11 @@ const ProductSchema = new Schema({
     type: Boolean,
     default: true,
   },
-    isPartnerOnly: {
+  isFeatured: {
+    type: Boolean,
+    default: false,
+  },
+  isPartnerOnly: {
     type: Boolean,
     default: false
   },
@@ -74,56 +78,56 @@ const ProductSchema = new Schema({
 
 // 🔹 MÉTODOS PARA MANEJO DE STOCK
 ProductSchema.methods = {
-  hasEnoughStock: function(quantity) {
+  hasEnoughStock: function (quantity) {
     return this.stock >= quantity;
   },
-  
-  reduceStock: async function(quantity) {
+
+  reduceStock: async function (quantity) {
     if (!this.hasEnoughStock(quantity)) {
       throw new Error(`Stock insuficiente. Disponible: ${this.stock}, Solicitado: ${quantity}`);
     }
     this.stock -= quantity;
     return await this.save();
   },
-  
-  increaseStock: async function(quantity) {
+
+  increaseStock: async function (quantity) {
     this.stock += quantity;
     return await this.save();
   },
 
   // 🔥 NUEVO: Método para agregar rating desde carrito
-addCartRating: async function(cartId, stars, comment = '') {
-  const parsedStars = Number(stars);
-  if (parsedStars < 1 || parsedStars > 5) {
-    throw new Error('El rating debe estar entre 1 y 5');
-  }
+  addCartRating: async function (cartId, stars, comment = '') {
+    const parsedStars = Number(stars);
+    if (parsedStars < 1 || parsedStars > 5) {
+      throw new Error('El rating debe estar entre 1 y 5');
+    }
 
-  const existingRatingIndex = this.cartRatings.findIndex(
-    rating => rating.cartId.toString() === cartId.toString()
-  );
+    const existingRatingIndex = this.cartRatings.findIndex(
+      rating => rating.cartId.toString() === cartId.toString()
+    );
 
-  if (existingRatingIndex !== -1) {
-    this.cartRatings[existingRatingIndex] = {
-      cartId,
-      stars: parsedStars,
-      comment,
-      ratedAt: new Date()
-    };
-  } else {
-    this.cartRatings.push({
-      cartId,
-      stars: parsedStars,
-      comment,
-      ratedAt: new Date()
-    });
-  }
+    if (existingRatingIndex !== -1) {
+      this.cartRatings[existingRatingIndex] = {
+        cartId,
+        stars: parsedStars,
+        comment,
+        ratedAt: new Date()
+      };
+    } else {
+      this.cartRatings.push({
+        cartId,
+        stars: parsedStars,
+        comment,
+        ratedAt: new Date()
+      });
+    }
 
-  this.calculateAverageRating();
-  return await this.save();
-},
+    this.calculateAverageRating();
+    return await this.save();
+  },
 
   // 🔥 NUEVO: Calcular rating promedio basado en cartRatings
-  calculateAverageRating: function() {
+  calculateAverageRating: function () {
     if (this.cartRatings.length === 0) {
       this.rating = 0;
       this.numReviews = 0;
@@ -137,7 +141,7 @@ addCartRating: async function(cartId, stars, comment = '') {
 };
 
 // 🔹 MIDDLEWARE: Si el stock llega a 0, desactivar automáticamente
-ProductSchema.pre('save', function(next) {
+ProductSchema.pre('save', function (next) {
   if (this.stock === 0 && this.isActive) {
     this.isActive = false;
   } else if (this.stock > 0 && !this.isActive) {

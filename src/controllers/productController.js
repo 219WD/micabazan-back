@@ -190,6 +190,15 @@ const togglePartnerOnly = async (req, res) => {
   }
 };
 
+// ─── PATCH toggle toggleFeatured ───────────────────────────────────────────────
+const toggleFeatured = async (req, res) => {
+  const product = await Product.findById(req.params.id);
+  if (!product) return res.status(404).json({ error: 'Producto no encontrado' });
+  product.isFeatured = !product.isFeatured;
+  await product.save();
+  res.json({ message: `Producto ${product.isFeatured ? 'destacado' : 'no destacado'}`, product });
+};
+
 // ─── POST restaurar stock ─────────────────────────────────────────────────────
 const restoreStock = async (req, res) => {
   try {
@@ -270,6 +279,7 @@ module.exports = {
   toggleProductStatus,
   toggleProductIsUsd,
   togglePartnerOnly,
+  toggleFeatured,
   restoreStock,
   checkStock,
   debugProduct,

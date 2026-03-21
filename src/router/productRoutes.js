@@ -12,6 +12,7 @@ const {
   restoreStock,
   checkStock,
   debugProduct,
+  toggleFeatured,
 } = require('../controllers/productController');
 
 const { authenticate, isModerador, isAdmin } = require('../middlewares/authMiddleware');
@@ -31,6 +32,7 @@ router.patch('/:id/toggle-exclusive', authenticate, isModerador, togglePartnerOn
 
 router.post('/:id/restore-stock', authenticate, isModerador, restoreStock);
 router.post('/:id/check-stock',   authenticate, checkStock);
+router.patch('/:id/toggle-featured', authenticate, isModerador, toggleFeatured);
 
 // ─── Admin+ ───────────────────────────────────────────────────────────────────
 router.get('/:id/debug', authenticate, isAdmin, debugProduct);
