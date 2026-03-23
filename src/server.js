@@ -14,6 +14,7 @@ const UserRouter        = require("./router/UserRoutes");
 const ProductRouter     = require("./router/productRoutes");
 const CartRouter        = require("./router/cartRoutes");
 const MercadoPagoRouter = require("./router/Mercado_Pago_Router");
+const UploadRouter = require("./router/uploadRoutes");
 
 // ─── Conexión a MongoDB ──────────────────────────────────────────────────────
 const connectDB = async () => {
@@ -102,6 +103,7 @@ server.use("/users",       UserRouter);
 server.use("/products",    ProductRouter);
 server.use("/cart",        CartRouter);
 server.use("/mercadopago", MercadoPagoRouter);
+server.use("/upload", UploadRouter);
 
 // ─── Health check ─────────────────────────────────────────────────────────────
 server.get("/health", (req, res) => {
