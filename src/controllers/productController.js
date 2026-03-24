@@ -1,14 +1,16 @@
 const Product = require('../models/Product');
 
+const TALLES_VALIDOS = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'Único'];
+
 // ─── GET todos los productos ──────────────────────────────────────────────────
 const getProducts = async (req, res) => {
   try {
-    const { category, active, search } = req.query;
-
+    const { category, active, search, isFeatured } = req.query;
     const filter = {};
     if (category) filter.category = category;
     if (active !== undefined) filter.isActive = active === 'true';
     if (search) filter.title = { $regex: search, $options: 'i' };
+    if (isFeatured) filter.isFeatured = isFeatured === 'true';
 
     const products = await Product.find(filter).sort({ createdAt: -1 });
     res.json(products);
@@ -25,7 +27,6 @@ const getProductById = async (req, res) => {
     if (!product) return res.status(404).json({ error: 'Producto no encontrado' });
     res.json(product);
   } catch (err) {
-    console.error('getProductById:', err);
     res.status(500).json({ error: 'Error al obtener el producto' });
   }
 };
@@ -34,23 +35,23 @@ const getProductById = async (req, res) => {
 const createProduct = async (req, res) => {
   try {
     const {
-      title,
-      image,
-      additionalImages,
-      description,
-      stock,
-      price,
-      isUsd,
-      category,
-      isPartnerOnly,
+      title, image, additionalImages, description,
+      stock, price, precioAntes,
+      isUsd, category, isPartnerOnly,
+      talles, color,
     } = req.body;
 
     if (!title || !image || stock === undefined || price === undefined) {
       return res.status(400).json({ error: 'title, image, stock y price son obligatorios' });
     }
-
     if (price < 0) return res.status(400).json({ error: 'El precio no puede ser negativo' });
     if (stock < 0) return res.status(400).json({ error: 'El stock no puede ser negativo' });
+    if (precioAntes !== undefined && precioAntes !== null && precioAntes < price) {
+      return res.status(400).json({ error: 'precioAntes debe ser mayor al precio actual' });
+    }
+
+    // Validar talles
+    const tallesValidos = (talles || []).filter(t => TALLES_VALIDOS.includes(t));
 
     const product = await Product.create({
       title: title.trim(),
@@ -59,9 +60,12 @@ const createProduct = async (req, res) => {
       description: description?.trim() || '',
       stock: Number(stock),
       price: Number(price),
+      precioAntes: precioAntes ? Number(precioAntes) : null,
       isUsd: isUsd || false,
       category: category?.trim() || null,
       isPartnerOnly: isPartnerOnly || false,
+      talles: tallesValidos,
+      color: color?.trim() || null,
     });
 
     res.status(201).json(product);
@@ -75,40 +79,32 @@ const createProduct = async (req, res) => {
 const updateProduct = async (req, res) => {
   try {
     const {
-      title,
-      image,
-      additionalImages,
-      description,
-      stock,
-      price,
-      isUsd,
-      category,
-      isPartnerOnly,
+      title, image, additionalImages, description,
+      stock, price, precioAntes,
+      isUsd, category, isPartnerOnly,
+      talles, color,
     } = req.body;
 
-    if (price !== undefined && price < 0) {
-      return res.status(400).json({ error: 'El precio no puede ser negativo' });
-    }
-    if (stock !== undefined && stock < 0) {
-      return res.status(400).json({ error: 'El stock no puede ser negativo' });
-    }
+    if (price !== undefined && price < 0) return res.status(400).json({ error: 'El precio no puede ser negativo' });
+    if (stock !== undefined && stock < 0) return res.status(400).json({ error: 'El stock no puede ser negativo' });
 
     const product = await Product.findById(req.params.id);
     if (!product) return res.status(404).json({ error: 'Producto no encontrado' });
 
-    // Solo pisa los campos que llegaron
-    if (title !== undefined)            product.title            = title.trim();
-    if (image !== undefined)            product.image            = image;
+    if (title !== undefined) product.title = title.trim();
+    if (image !== undefined) product.image = image;
     if (additionalImages !== undefined) product.additionalImages = additionalImages;
-    if (description !== undefined)      product.description      = description.trim();
-    if (stock !== undefined)            product.stock            = Number(stock);
-    if (price !== undefined)            product.price            = Number(price);
-    if (isUsd !== undefined)            product.isUsd            = isUsd;
-    if (category !== undefined)         product.category         = category?.trim() || null;
-    if (isPartnerOnly !== undefined)    product.isPartnerOnly    = isPartnerOnly;
+    if (description !== undefined) product.description = description.trim();
+    if (stock !== undefined) product.stock = Number(stock);
+    if (price !== undefined) product.price = Number(price);
+    if (precioAntes !== undefined) product.precioAntes = precioAntes ? Number(precioAntes) : null;
+    if (isUsd !== undefined) product.isUsd = isUsd;
+    if (category !== undefined) product.category = category?.trim() || null;
+    if (isPartnerOnly !== undefined) product.isPartnerOnly = isPartnerOnly;
+    if (talles !== undefined) product.talles = talles.filter(t => TALLES_VALIDOS.includes(t));
+    if (color !== undefined) product.color = color?.trim() || null;
 
-    await product.save(); // dispara el pre-save que maneja isActive según stock
-
+    await product.save();
     res.json(product);
   } catch (err) {
     console.error('updateProduct:', err);
@@ -123,7 +119,6 @@ const deleteProduct = async (req, res) => {
     if (!product) return res.status(404).json({ error: 'Producto no encontrado' });
     res.json({ message: 'Producto eliminado correctamente' });
   } catch (err) {
-    console.error('deleteProduct:', err);
     res.status(500).json({ error: 'Error al eliminar el producto' });
   }
 };
@@ -133,21 +128,13 @@ const toggleProductStatus = async (req, res) => {
   try {
     const product = await Product.findById(req.params.id);
     if (!product) return res.status(404).json({ error: 'Producto no encontrado' });
-
-    // No activar si no tiene stock
     if (!product.isActive && product.stock === 0) {
       return res.status(400).json({ error: 'No se puede activar un producto sin stock' });
     }
-
     product.isActive = !product.isActive;
     await product.save();
-
-    res.json({
-      message: `Producto ${product.isActive ? 'activado' : 'desactivado'}`,
-      product,
-    });
+    res.json({ message: `Producto ${product.isActive ? 'activado' : 'desactivado'}`, product });
   } catch (err) {
-    console.error('toggleProductStatus:', err);
     res.status(500).json({ error: 'Error al cambiar estado del producto' });
   }
 };
@@ -157,17 +144,11 @@ const toggleProductIsUsd = async (req, res) => {
   try {
     const product = await Product.findById(req.params.id);
     if (!product) return res.status(404).json({ error: 'Producto no encontrado' });
-
     product.isUsd = !product.isUsd;
     await product.save();
-
-    res.json({
-      message: `Precio ahora en ${product.isUsd ? 'USD' : 'ARS'}`,
-      product,
-    });
+    res.json({ message: `Precio en ${product.isUsd ? 'USD' : 'ARS'}`, product });
   } catch (err) {
-    console.error('toggleProductIsUsd:', err);
-    res.status(500).json({ error: 'Error al cambiar moneda del producto' });
+    res.status(500).json({ error: 'Error al cambiar moneda' });
   }
 };
 
@@ -176,49 +157,37 @@ const togglePartnerOnly = async (req, res) => {
   try {
     const product = await Product.findById(req.params.id);
     if (!product) return res.status(404).json({ error: 'Producto no encontrado' });
-
     product.isPartnerOnly = !product.isPartnerOnly;
     await product.save();
-
-    res.json({
-      message: `Producto ahora es ${product.isPartnerOnly ? 'exclusivo' : 'público'}`,
-      product,
-    });
+    res.json({ message: `Producto ${product.isPartnerOnly ? 'exclusivo' : 'público'}`, product });
   } catch (err) {
-    console.error('togglePartnerOnly:', err);
-    res.status(500).json({ error: 'Error al cambiar exclusividad del producto' });
+    res.status(500).json({ error: 'Error al cambiar exclusividad' });
   }
 };
 
-// ─── PATCH toggle toggleFeatured ───────────────────────────────────────────────
+// ─── PATCH toggle isFeatured ──────────────────────────────────────────────────
 const toggleFeatured = async (req, res) => {
-  const product = await Product.findById(req.params.id);
-  if (!product) return res.status(404).json({ error: 'Producto no encontrado' });
-  product.isFeatured = !product.isFeatured;
-  await product.save();
-  res.json({ message: `Producto ${product.isFeatured ? 'destacado' : 'no destacado'}`, product });
+  try {
+    const product = await Product.findById(req.params.id);
+    if (!product) return res.status(404).json({ error: 'Producto no encontrado' });
+    product.isFeatured = !product.isFeatured;
+    await product.save();
+    res.json({ message: `Producto ${product.isFeatured ? 'destacado' : 'no destacado'}`, product });
+  } catch (err) {
+    res.status(500).json({ error: 'Error al cambiar destacado' });
+  }
 };
 
 // ─── POST restaurar stock ─────────────────────────────────────────────────────
 const restoreStock = async (req, res) => {
   try {
     const { quantity } = req.body;
-
-    if (!quantity || quantity <= 0) {
-      return res.status(400).json({ error: 'La cantidad debe ser mayor a 0' });
-    }
-
+    if (!quantity || quantity <= 0) return res.status(400).json({ error: 'La cantidad debe ser mayor a 0' });
     const product = await Product.findById(req.params.id);
     if (!product) return res.status(404).json({ error: 'Producto no encontrado' });
-
     await product.increaseStock(Number(quantity));
-
-    res.json({
-      message: `Stock restaurado. Nuevo stock: ${product.stock}`,
-      product,
-    });
+    res.json({ message: `Stock restaurado. Nuevo stock: ${product.stock}`, product });
   } catch (err) {
-    console.error('restoreStock:', err);
     res.status(400).json({ error: err.message });
   }
 };
@@ -227,60 +196,35 @@ const restoreStock = async (req, res) => {
 const checkStock = async (req, res) => {
   try {
     const { quantity } = req.body;
-
-    if (!quantity || quantity <= 0) {
-      return res.status(400).json({ error: 'La cantidad debe ser mayor a 0' });
-    }
-
+    if (!quantity || quantity <= 0) return res.status(400).json({ error: 'La cantidad debe ser mayor a 0' });
     const product = await Product.findById(req.params.id);
     if (!product) return res.status(404).json({ error: 'Producto no encontrado' });
-
-    res.json({
-      hasStock: product.hasEnoughStock(Number(quantity)),
-      available: product.stock,
-      requested: Number(quantity),
-    });
+    res.json({ hasStock: product.hasEnoughStock(Number(quantity)), available: product.stock, requested: Number(quantity) });
   } catch (err) {
-    console.error('checkStock:', err);
     res.status(400).json({ error: err.message });
   }
 };
 
-// ─── GET debug (admin+) ───────────────────────────────────────────────────────
+// ─── GET debug ────────────────────────────────────────────────────────────────
 const debugProduct = async (req, res) => {
   try {
     const product = await Product.findById(req.params.id);
     if (!product) return res.status(404).json({ error: 'Producto no encontrado' });
-
     res.json({
-      _id: product._id,
-      title: product.title,
-      stock: product.stock,
-      price: product.price,
-      isActive: product.isActive,
-      isUsd: product.isUsd,
-      rating: product.rating,
-      numReviews: product.numReviews,
-      cartRatingsCount: product.cartRatings?.length || 0,
+      _id: product._id, title: product.title,
+      stock: product.stock, price: product.price, precioAntes: product.precioAntes,
+      talles: product.talles, color: product.color,
+      isActive: product.isActive, isUsd: product.isUsd, isFeatured: product.isFeatured,
+      rating: product.rating, numReviews: product.numReviews,
       updatedAt: product.updatedAt,
     });
   } catch (err) {
-    console.error('debugProduct:', err);
-    res.status(500).json({ error: 'Error al obtener debug del producto' });
+    res.status(500).json({ error: 'Error al obtener debug' });
   }
 };
 
 module.exports = {
-  getProducts,
-  getProductById,
-  createProduct,
-  updateProduct,
-  deleteProduct,
-  toggleProductStatus,
-  toggleProductIsUsd,
-  togglePartnerOnly,
-  toggleFeatured,
-  restoreStock,
-  checkStock,
-  debugProduct,
+  getProducts, getProductById, createProduct, updateProduct, deleteProduct,
+  toggleProductStatus, toggleProductIsUsd, togglePartnerOnly, toggleFeatured,
+  restoreStock, checkStock, debugProduct,
 };

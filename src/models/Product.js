@@ -1,6 +1,8 @@
 const mongoose = require('mongoose');
 const { Schema } = mongoose;
 
+const TALLES = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'Único'];
+
 const ProductSchema = new Schema({
   title: {
     type: String,
@@ -26,6 +28,8 @@ const ProductSchema = new Schema({
     required: true,
     min: 0
   },
+  // Precio tachado (precio antes del descuento)
+  precioAntes: { type: Number, default: null, min: 0 },
   isUsd: {
     type: Boolean,
     default: false,
@@ -45,6 +49,15 @@ const ProductSchema = new Schema({
     type: Boolean,
     default: false
   },
+  // Talles disponibles — array de strings del enum
+  talles: [{
+    type: String,
+    enum: TALLES,
+  }],
+
+  // Color libre — el vendedor escribe lo que quiera
+  // Ej: "Negro", "Rosa / Blanco", "Estampado tropical"
+  color: { type: String, default: null, trim: true },
   rating: {
     type: Number,
     default: 0,
